@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-CORE_NAME="S32X_MiSTer"
+CORE_NAME="S32X"
 MAIN_BRANCH="main"
 COMPILATION_OUTPUT="output_files/S32X.rbf"
 

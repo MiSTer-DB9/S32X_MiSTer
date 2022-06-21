@@ -4,7 +4,7 @@
 set -euo pipefail
 
 UPSTREAM_REPO="https://github.com/MiSTer-devel/S32X_MiSTer"
-CORE_NAME="S32X_MiSTer"
+CORE_NAME="S32X"
 MAIN_BRANCH="main"
 
 echo "Fetching upstream:"
