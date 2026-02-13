@@ -333,7 +333,7 @@ localparam CONF_STR = {
 
 wire [63:0] status;
 wire  [1:0] buttons;
-wire [11:0] joystick_0_USB,joystick_1_USB,joystick_2_USB,joystick_3_USB,joystick_4;
+wire [11:0] joystick_0_USB,joystick_1_USB,joystick_2_USB,joystick_3_USB,joystick_4_USB;
 wire  [7:0] joy0_x,joy0_y,joy1_x,joy1_y;
 wire        ioctl_download;
 wire        ioctl_wr;
@@ -366,6 +366,7 @@ wire [31:0] joystick_0 = joydb_1ena ? (OSD_STATUS? 32'b000000 : {joydb_1[9],joyd
 wire [31:0] joystick_1 = joydb_2ena ? (OSD_STATUS? 32'b000000 : {joydb_2[9],joydb_2[8],joydb_2[7],joydb_2[11],joydb_2[10],joydb_2[6:0]}) : joydb_1ena ? joystick_0_USB : joystick_1_USB;
 wire [31:0] joystick_2 = joydb_2ena ? joystick_0_USB : joydb_1ena ? joystick_1_USB : joystick_2_USB;
 wire [31:0] joystick_3 = joydb_2ena ? joystick_1_USB : joydb_1ena ? joystick_2_USB : joystick_3_USB;
+wire [31:0] joystick_4 = joydb_2ena ? joystick_2_USB : joydb_1ena ? joystick_3_USB : joystick_4_USB;
 
 wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
 wire [15:0] joydb_2 = JOY_FLAG[2] ? JOYDB9MD_2 : JOY_FLAG[1] ? JOYDB15_2 : '0;
@@ -407,7 +408,8 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.joystick_1(joystick_1_USB),
 	.joystick_2(joystick_2_USB),
 	.joystick_3(joystick_3_USB),
-	.joystick_4(joystick_4),
+	.joystick_4(joystick_4_USB),
+	.joy_raw(OSD_STATUS? (joydb_1[5:0]|joydb_2[5:0]) : 6'b000000 ),
 	.joystick_l_analog_0({joy0_y, joy0_x}),
 	.joystick_l_analog_1({joy1_y, joy1_x}),
 
