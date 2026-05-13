@@ -9,7 +9,7 @@ module S32X_IF
 	input             VCLK,
 	input      [23:1] VA,
 	input      [15:0] VDI,
-	output     [15:0] VDO,
+	output reg [15:0] VDO,
 	input             AS_N,
 	output            DTACK_N,
 	input             LWR_N,
@@ -38,10 +38,10 @@ module S32X_IF
 	output            SHRES_N,
 	output            SHDREQ0_N,
 	output            SHDREQ1_N,
-	output      [3:1] SHMIRL_N,
-	output      [3:1] SHSIRL_N,
+	output reg  [3:1] SHMIRL_N,
+	output reg  [3:1] SHSIRL_N,
 	
-	output    [21:19] OVA,
+	output reg[21:19] OVA,
 	output            SEL,
 	
 	input      [15:0] CDI,
@@ -53,16 +53,16 @@ module S32X_IF
 	output            CCAS0_N,
 	output            CCAS2_N,
 	
-	output     [17:1] VDP_A,
+	output reg [17:1] VDP_A,
 	input      [15:0] VDP_DI,
-	output     [15:0] VDP_DO,
-	output            VDP_RD_N,
-	output            VDP_LWR_N,
-	output            VDP_UWR_N,
+	output reg [15:0] VDP_DO,
+	output reg        VDP_RD_N,
+	output reg        VDP_LWR_N,
+	output reg        VDP_UWR_N,
 	input             VDP_ACK_N,
-	output            VDP_DRAM_CS_N,
-	output            VDP_REG_CS_N,
-	output            VDP_PAL_CS_N,
+	output reg        VDP_DRAM_CS_N,
+	output reg        VDP_REG_CS_N,
+	output reg        VDP_PAL_CS_N,
 //	output            VDP_RW,
 //	output            VDP_DIR,
 //	output            VDP_ACCS,
@@ -71,17 +71,17 @@ module S32X_IF
 	input             VDP_HINT,
 //	output            VDP_C23,
 	
-	output     [15:0] PWM_L,
-	output     [15:0] PWM_R,
+	output reg [15:0] PWM_L,
+	output reg [15:0] PWM_R,
 	
 	input             ROM_WAIT,
 	
 	output     [23:0] DBG_VA,
-	output      [7:0] ROM_WAIT_CNT,
-	output            MD_CP_READ,
-	output            MD_CP_WRITE,
-	output            SH_CP_READ,
-	output            SH_CP_WRITE
+	output reg  [7:0] ROM_WAIT_CNT,
+	output reg        MD_CP_READ,
+	output reg        MD_CP_WRITE,
+	output reg        SH_CP_READ,
+	output reg        SH_CP_WRITE
 );
 	import S32X_PKG::*;
 
@@ -129,7 +129,7 @@ module S32X_IF
 	bit [15:0] FIFO_BUF[8];
 	bit  [2:0] FIFO_WR_POS;
 	bit  [2:0] FIFO_RD_POS;
-	bit  [2:0] FIFO_AMOUNT;
+	bit  [3:0] FIFO_AMOUNT;
 	bit        FIFO_FULL;
 	bit        FIFO_EMPTY;
 	bit        FIFO_REQ, FIFO_REQ2, FIFO_REQ3;
@@ -156,61 +156,44 @@ module S32X_IF
 	bit        SH_ROM_WAIT;
 	bit        SH_ROM_GRANT;
 	
-	typedef enum bit [8:0] {
-		RS_IDLE    = 9'b000000001,
-		RS_MD_RW   = 9'b000000010, 
-		RS_MD_WAIT = 9'b000000100, 
-		RS_MD_READ = 9'b000001000, 
-		RS_SH_RW   = 9'b000010000, 
-		RS_SH_WAIT = 9'b000100000, 
-		RS_SH_READ = 9'b001000000,
-		RS_MD_END  = 9'b010000000,
-		RS_SH_END  = 9'b100000000
+	typedef enum bit [3:0] {
+		RS_IDLE,
+		RS_SH_WAIT, 
+		RS_SH_READ,
+		RS_SH_END,
+		RS_SH_CONT,
+		RS_MD_RW, 
+		RS_MD_WAIT, 
+		RS_MD_READ, 
+		RS_MD_END
 	} ROMState_t;
 	ROMState_t ROM_ST;
 	
-	bit [23:1] VA_SYNC;
-	bit [15:0] VDI_SYNC;
-	bit [15:0] CDI_SYNC;
-	bit  [2:0] AS_N_SYNC;
-	bit        ASEL_N_SYNC;
-	bit  [2:0] CE0_N_SYNC;
-	bit  [2:0] CAS0_N_SYNC;
-	bit  [2:0] LWR_N_SYNC;
-	bit  [2:0] UWR_N_SYNC;
-	bit        CAS2_N_SYNC;
-	always @(negedge CLK) begin
-		VA_SYNC <= VA;
-		VDI_SYNC <= VDI;
-		CDI_SYNC <= CDI;
-		AS_N_SYNC <= {AS_N_SYNC[1:0],AS_N};
-		ASEL_N_SYNC <= ASEL_N;
-		CE0_N_SYNC <= {CE0_N_SYNC[1:0],CE0_N};
-		CAS0_N_SYNC <= {CAS0_N_SYNC[1:0],CAS0_N};
-		LWR_N_SYNC <= {LWR_N_SYNC[1:0],LWR_N};
-		UWR_N_SYNC <= {UWR_N_SYNC[1:0],UWR_N};
-		CAS2_N_SYNC <= CAS2_N;
+	bit  [1:0] CAS0_N_SYNC;
+	bit  [1:0] LWR_N_SYNC;
+	bit  [1:0] UWR_N_SYNC;
+	always @(posedge CLK) begin
+		CAS0_N_SYNC <= {CAS0_N_SYNC[0],CAS0_N};
+		LWR_N_SYNC <= {LWR_N_SYNC[0],LWR_N};
+		UWR_N_SYNC <= {UWR_N_SYNC[0],UWR_N};
 	end
 	
-	wire CAS0_F = CAS0_N_SYNC == 3'b110;
-	wire CAS0_V  = CAS0_N_SYNC[0];
-	wire LWR_F  = LWR_N_SYNC == 3'b100;
-	wire LWR_V  = LWR_N_SYNC[0];
-	wire UWR_F  = UWR_N_SYNC == 3'b100;
-	wire UWR_V  = UWR_N_SYNC[0];
+	wire CAS0_F = CAS0_N_SYNC == 2'b10;
+	wire LWR_F  = LWR_N_SYNC == 2'b10;
+	wire UWR_F  = UWR_N_SYNC == 2'b10;
 	
 	bit [15:0] SHROM_Q;
 	SHROM shrom(.clock(CLK), .address({SHCS0M_N,SHA[10:1]}), .q(SHROM_Q));
 
-	wire MDROM_WE = VA_SYNC[23:2] == 24'h000070>>2 & (LWR_F | UWR_F) & ~AS_N_SYNC[0] & ADCR.ADEN;
+	wire MDROM_WE = VA[23:2] == 24'h000070>>2 & (LWR_F | UWR_F) & ~AS_N & ADCR.ADEN;
 	bit [15:0] MDROM_Q;
-	MDROM mdrom(.clock(CLK), .address(VA_SYNC[7:1]), .data(VDI_SYNC), .wren(MDROM_WE), .q(MDROM_Q));
+	MDROM mdrom(.clock(CLK), .address(VA[7:1]), .data(VDI), .wren(MDROM_WE), .q(MDROM_Q));
 	
 	
-	wire MD_SYSREG_SEL = VA_SYNC[23:7] == 24'hA15100>>7;		//A15100-A1517F
-	wire MD_32XID_SEL  = VA_SYNC[23:2] == 24'hA130EC>>2;		//A130FC-A130FF
-	wire MD_DMA_MATCH  = VA_SYNC == DSAR[23:1] & ~AS_N_SYNC[0] & ~CAS0_N_SYNC[0];		//
-	wire MD_DMA_READ   = MD_DMA_EXEC & ~AS_N_SYNC[0] & ~CAS0_N_SYNC[0];
+	wire MD_SYSREG_SEL = VA[23:7] == 24'hA15100>>7;		//A15100-A1517F
+	wire MD_32XID_SEL  = VA[23:2] == 24'hA130EC>>2;		//A130FC-A130FF
+	wire MD_DMA_MATCH  = VA == DSAR[23:1] & ~AS_N & ~CAS0_N;		//
+	wire MD_DMA_READ   = MD_DMA_EXEC & ~AS_N & ~CAS0_N;
 	
 	wire SH_SLV = ~SHCS0S_N;
 	wire SH_BIOS_SEL = (~SHCS0M_N | ~SHCS0S_N) & SHA[17:14] == 4'b0000;	//00000000-00003FFF,20000000-20003FFF
@@ -273,7 +256,7 @@ module S32X_IF
 			FIFO_RD_POS <= '0;
 			FIFO_AMOUNT <= '0;
 			FIFO_FULL <= 0;
-			FIFO_EMPTY <= 0;
+			FIFO_EMPTY <= 1;
 			FIFO_REQ_AVAIL <= 0;
 			FIFO_REQ_PEND <= 0;
 			FIFO_REQ <= 0;
@@ -312,47 +295,47 @@ module S32X_IF
 			RPWFIFO_DEC_AMOUNT = 0;
 			MD_CP_READ <= 0;
 			MD_CP_WRITE <= 0;
-			if (MD_SYSREG_SEL && !AS_N_SYNC[0] && MD_REG_DTACK_N) begin
+			if (MD_SYSREG_SEL && !AS_N && MD_REG_DTACK_N) begin
 				if (LWR_F || UWR_F) begin
-					case ({VA_SYNC[5:1],1'b0})
+					case ({VA[5:1],1'b0})
 						6'h00: begin
-							if (!LWR_V) ADCR[ 7:0] <= VDI_SYNC[ 7:0] & ADCR_MASK[ 7:0];
-							if (!UWR_V) ADCR[15:8] <= VDI_SYNC[15:8] & ADCR_MASK[15:8];
+							if (!LWR_N) ADCR[ 7:0] <= VDI[ 7:0] & ADCR_MASK[ 7:0];
+							if (!UWR_N) ADCR[15:8] <= VDI[15:8] & ADCR_MASK[15:8];
 						end
 						6'h02: begin
-							if (!LWR_V) ICR[ 7:0] <= VDI_SYNC[ 7:0] & ICR_MASK[ 7:0];
-							if (!UWR_V) ICR[15:8] <= VDI_SYNC[15:8] & ICR_MASK[15:8];
+							if (!LWR_N) ICR[ 7:0] <= VDI[ 7:0] & ICR_MASK[ 7:0];
+							if (!UWR_N) ICR[15:8] <= VDI[15:8] & ICR_MASK[15:8];
 						end
 						6'h04: begin
-							if (!LWR_V) BSR[ 7:0] <= VDI_SYNC[ 7:0] & BSR_MASK[ 7:0];
-							if (!UWR_V) BSR[15:8] <= VDI_SYNC[15:8] & BSR_MASK[15:8];
+							if (!LWR_N) BSR[ 7:0] <= VDI[ 7:0] & BSR_MASK[ 7:0];
+							if (!UWR_N) BSR[15:8] <= VDI[15:8] & BSR_MASK[15:8];
 						end
 						6'h06: begin
-							if (!LWR_V) DCR[ 7:0] <= VDI_SYNC[ 7:0] & DCR_MASK[ 7:0];
-							if (!UWR_V) DCR[15:8] <= VDI_SYNC[15:8] & DCR_MASK[15:8];
-							if (!LWR_V && !VDI_SYNC[2]) begin
+							if (!LWR_N) DCR[ 7:0] <= VDI[ 7:0] & DCR_MASK[ 7:0];
+							if (!UWR_N) DCR[15:8] <= VDI[15:8] & DCR_MASK[15:8];
+							if (!LWR_N && !VDI[2]) begin
 								FIFO_WR_POS <= '0;
 								FIFO_RD_POS <= '0;
 								FIFO_AMOUNT <= '0;
 								FIFO_FULL <= 0;
-								FIFO_EMPTY <= 0;
+								FIFO_EMPTY <= 1;
 								FIFO_REQ <= 0;
 							end
 						end
 						6'h08: begin
-							DSAR[23:16] <= VDI_SYNC[ 7:0] & DSAR_MASK[23:16];
+							DSAR[23:16] <= VDI[ 7:0] & DSAR_MASK[23:16];
 						end
 						6'h0A: begin
-							DSAR[15:0]  <= VDI_SYNC & DSAR_MASK[15:0];
+							DSAR[15:0]  <= VDI & DSAR_MASK[15:0];
 						end
 						6'h0C: begin
-							DDAR[23:16] <= VDI_SYNC[ 7:0] & DDAR_MASK[23:16];
+							DDAR[23:16] <= VDI[ 7:0] & DDAR_MASK[23:16];
 						end
 						6'h0E: begin
-							DDAR[15:0]  <= VDI_SYNC & DDAR_MASK[15:0];
+							DDAR[15:0]  <= VDI & DDAR_MASK[15:0];
 						end
 						6'h10: begin
-							DLR         <= VDI_SYNC & DLR_MASK;
+							DLR         <= VDI & DLR_MASK;
 						end
 						6'h12: begin
 							if (DCR.M68S) begin
@@ -368,69 +351,69 @@ module S32X_IF
 							end
 						end
 						6'h1A: begin
-							if (!LWR_V) STVR[ 7:0] <= VDI_SYNC[ 7:0] & STVR_MASK[ 7:0];
-							if (!UWR_V) STVR[15:8] <= VDI_SYNC[15:8] & STVR_MASK[15:8];
+							if (!LWR_N) STVR[ 7:0] <= VDI[ 7:0] & STVR_MASK[ 7:0];
+							if (!UWR_N) STVR[15:8] <= VDI[15:8] & STVR_MASK[15:8];
 						end
 						6'h20: begin
-							if (!LWR_V) CP0R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP0R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP0R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP0R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 							MD_CP_WRITE <= 1;
 						end
 						6'h22: begin
-							if (!LWR_V) CP1R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP1R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP1R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP1R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 //							MD_CP_WRITE <= 1;
 						end
 						6'h24: begin
-							if (!LWR_V) CP2R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP2R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP2R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP2R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 						end
 						6'h26: begin
-							if (!LWR_V) CP3R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP3R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP3R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP3R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 						end
 						6'h28: begin
-							if (!LWR_V) CP4R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP4R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP4R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP4R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 						end
 						6'h2A: begin
-							if (!LWR_V) CP5R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP5R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP5R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP5R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 						end
 						6'h2C: begin
-							if (!LWR_V) CP6R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP6R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP6R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP6R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 						end
 						6'h2E: begin
-							if (!LWR_V) CP7R[ 7:0] <= VDI_SYNC[ 7:0] & CPxR_MASK[ 7:0];
-							if (!UWR_V) CP7R[15:8] <= VDI_SYNC[15:8] & CPxR_MASK[15:8];
+							if (!LWR_N) CP7R[ 7:0] <= VDI[ 7:0] & CPxR_MASK[ 7:0];
+							if (!UWR_N) CP7R[15:8] <= VDI[15:8] & CPxR_MASK[15:8];
 						end
 						6'h30: begin
-							if (!LWR_V) PWMCR[ 7:0] <= VDI_SYNC[ 7:0] & PWMCR_MASK[ 7:0];
+							if (!LWR_N) PWMCR[ 7:0] <= VDI[ 7:0] & PWMCR_MASK[ 7:0];
 							TIME_CNT <= 0;
 							TIME_CNT_NEXT <= 5'd1;
 						end
 						6'h32: begin
-							if (!LWR_V) CYCR[ 7:0] <= VDI_SYNC[ 7:0] & CYCR_MASK[ 7:0];
-							if (!UWR_V) CYCR[11:8] <= VDI_SYNC[11:8] & CYCR_MASK[11:8];
+							if (!LWR_N) CYCR[ 7:0] <= VDI[ 7:0] & CYCR_MASK[ 7:0];
+							if (!UWR_N) CYCR[11:8] <= VDI[11:8] & CYCR_MASK[11:8];
 							CYC_CNT <= 0;
 							CYC_CNT_NEXT <= 12'd1;
 						end
 						6'h34: begin
-							if (!LWR_V) LPWR[ 7:0] <= VDI_SYNC[ 7:0] & PWR_MASK[ 7:0];
-							if (!UWR_V) LPWR[13:8] <= VDI_SYNC[13:8] & PWR_MASK[13:8];
+							if (!LWR_N) LPWR[ 7:0] <= VDI[ 7:0] & PWR_MASK[ 7:0];
+							if (!UWR_N) LPWR[13:8] <= VDI[13:8] & PWR_MASK[13:8];
 							LPW_SET <= 1;
 						end
 						6'h36: begin
-							if (!LWR_V) RPWR[ 7:0] <= VDI_SYNC[ 7:0] & PWR_MASK[ 7:0];
-							if (!UWR_V) RPWR[13:8] <= VDI_SYNC[13:8] & PWR_MASK[13:8];
+							if (!LWR_N) RPWR[ 7:0] <= VDI[ 7:0] & PWR_MASK[ 7:0];
+							if (!UWR_N) RPWR[13:8] <= VDI[13:8] & PWR_MASK[13:8];
 							RPW_SET <= 1;
 						end
 						6'h38: begin
-							if (!LWR_V) LPWR[ 7:0] <= VDI_SYNC[ 7:0] & PWR_MASK[ 7:0];
-							if (!UWR_V) LPWR[13:8] <= VDI_SYNC[13:8] & PWR_MASK[13:8];
-							if (!LWR_V) RPWR[ 7:0] <= VDI_SYNC[ 7:0] & PWR_MASK[ 7:0];
-							if (!UWR_V) RPWR[13:8] <= VDI_SYNC[13:8] & PWR_MASK[13:8];
+							if (!LWR_N) LPWR[ 7:0] <= VDI[ 7:0] & PWR_MASK[ 7:0];
+							if (!UWR_N) LPWR[13:8] <= VDI[13:8] & PWR_MASK[13:8];
+							if (!LWR_N) RPWR[ 7:0] <= VDI[ 7:0] & PWR_MASK[ 7:0];
+							if (!UWR_N) RPWR[13:8] <= VDI[13:8] & PWR_MASK[13:8];
 							LPW_SET <= 1;
 							RPW_SET <= 1;
 						end
@@ -438,11 +421,11 @@ module S32X_IF
 					endcase
 					MD_REG_DTACK_N <= 0;
 				end else if (CAS0_F) begin
-					case ({VA_SYNC[5:1],1'b0})
+					case ({VA[5:1],1'b0})
 						6'h00: MD_REG_DO <= ADCR & ADCR_MASK;
 						6'h02: MD_REG_DO <= ICR & ICR_MASK;
 						6'h04: MD_REG_DO <= BSR & BSR_MASK;
-						6'h06: MD_REG_DO <= (DCR & DCR_MASK) | {8'h00,FIFO_FULL,7'h00};
+						6'h06: MD_REG_DO <= (DCR & DCR_MASK) | {8'h00,/*(FIFO_AMOUNT >= 3'd4)*/FIFO_FULL,7'h00};
 						6'h08: MD_REG_DO <= {8'h00,DSAR[23:16] & DSAR_MASK[23:16]};
 						6'h0A: MD_REG_DO <= DSAR[15:0] & DSAR_MASK[15:0];
 						6'h0C: MD_REG_DO <= {8'h00,DDAR[23:16] & DDAR_MASK[23:16]};
@@ -465,7 +448,7 @@ module S32X_IF
 						6'h38: MD_REG_DO <= {RPWR.FULL,RPWR.EMPTY,14'h0000};
 						default: MD_REG_DO <= '0;
 					endcase
-					if ({VA_SYNC[5:1],1'b0} >= 6'h20 && {VA_SYNC[5:1],1'b0} <= 6'h21) MD_CP_READ <= 1;
+					if ({VA[5:1],1'b0} >= 6'h20 && {VA[5:1],1'b0} <= 6'h21) MD_CP_READ <= 1;
 					MD_REG_DTACK_N <= 0;
 				end
 //			end else if (MD_32XID_SEL && !AS_N && (!LWR_N | !UWR_N | !CAS0_N) && MD_REG_DTACK_N) begin
@@ -473,7 +456,7 @@ module S32X_IF
 //					MD_REG_DO <= !VA[1] ? S32X_ID[31:16] : S32X_ID[15:0];
 //				end
 //				MD_REG_DTACK_N <= 0;
-			end else if (AS_N_SYNC[0] && !MD_REG_DTACK_N) begin
+			end else if (AS_N && !MD_REG_DTACK_N) begin
 				MD_REG_DTACK_N <= 1;
 			end
 			
@@ -488,7 +471,7 @@ module S32X_IF
 				if (DCR.M68S) begin
 					DLR <= DLR_NEXT;
 					if (!DLR_NEXT) DCR.M68S <= 0;
-					FIFO_BUF[FIFO_WR_POS] <= VDI_SYNC;
+					FIFO_BUF[FIFO_WR_POS] <= VDI;
 					FIFO_WR_POS <= FIFO_WR_POS + 3'd1;
 					if (FIFO_WR_POS[1:0] == 2'd3) begin
 						FIFO_REQ_AVAIL <= 1;
@@ -618,7 +601,7 @@ module S32X_IF
 						6'h12: begin
 							SH_REG_DO <= FIFO_BUF[FIFO_RD_POS]; 
 							FIFO_RD_POS <= FIFO_RD_POS + 3'd1;
-							if (FIFO_RD_POS[1:0] == 2'd3) begin
+							if (FIFO_RD_POS[1:0] == 2'd3 && FIFO_AMOUNT <= 4'd4) begin
 								FIFO_REQ_AVAIL <= 0;
 							end
 							FIFO_DEC_AMOUNT = 1;
@@ -667,12 +650,12 @@ module S32X_IF
 			
 			//DREQ
 			if (FIFO_INC_AMOUNT && !FIFO_DEC_AMOUNT) begin
-				if (FIFO_AMOUNT == 3'd7) FIFO_FULL <= 1;
-				else FIFO_AMOUNT <= FIFO_AMOUNT + 3'd1;
+				if (FIFO_AMOUNT == 4'd7) FIFO_FULL <= 1;
+				if (FIFO_AMOUNT != 4'd8) FIFO_AMOUNT <= FIFO_AMOUNT + 4'd1;
 				FIFO_EMPTY <= 0;
 			end else if (!FIFO_INC_AMOUNT && FIFO_DEC_AMOUNT) begin
-				if (FIFO_AMOUNT == 3'd0) FIFO_EMPTY <= 1;
-				else FIFO_AMOUNT <= FIFO_AMOUNT - 3'd1;
+				if (FIFO_AMOUNT == 4'd1) FIFO_EMPTY <= 1;
+				if (FIFO_AMOUNT != 4'd0) FIFO_AMOUNT <= FIFO_AMOUNT - 4'd1;
 				FIFO_FULL <= 0;
 			end
 			
@@ -683,6 +666,7 @@ module S32X_IF
 				end else if (FIFO_REQ && CE_R) begin
 					FIFO_REQ <= 0;
 				end
+//				FIFO_REQ <= ~FIFO_EMPTY;
 				FIFO_REQ2 <= FIFO_REQ;
 				FIFO_REQ3 <= FIFO_REQ2;
 			end
@@ -792,9 +776,9 @@ module S32X_IF
 		end
 	end
 	
-	wire MD_BIOS_SEL = VA_SYNC[21:8] == 14'h0000 & ADCR.ADEN;								//000000-0000FF
-//	wire MD_ROM_SEL  = VA_SYNC[21:8] != 14'h0000 & ~CE0_N & ~AS_N & ADCR.ADEN & DCR.RV;					//000000-3FFFFF
-	wire MD_32XROM_SEL = VA_SYNC[23:16] >= 8'h88 & VA_SYNC[23:16] <= 8'h9F;	//880000-9FFFFF
+	wire MD_BIOS_SEL = VA[23:8] == 16'h0000 & ADCR.ADEN;				//000000-0000FF
+	wire MD_ROM_SEL  = VA[23:20] < 4'h4 & ADCR.ADEN;					//000000-3FFFFF
+	wire MD_32XROM_SEL = VA[23:16] >= 8'h88 & VA[23:16] <= 8'h9F;	//880000-9FFFFF
 	wire SH_ROM_SEL = ~SHCS1_N;		//02000000-03FFFFFF,22000000-23FFFFFF
 	
 	
@@ -828,31 +812,28 @@ module S32X_IF
 			if (SH_ROM_SEL && !SHBS_N && CE_F) begin
 				SH_ROM_WAIT <= 1;
 			end
-			if (MD_32XROM_SEL && !AS_N_SYNC[0] && (LWR_F || UWR_F || CAS0_F)) begin
+			if (MD_32XROM_SEL && !AS_N && (LWR_F || UWR_F || CAS0_F)) begin
 				MD_ROM_WAIT <= 1;
 			end
 			
-			if (SH_ROM_WAIT) ROM_WAIT_CNT <= ROM_WAIT_CNT + 8'd1;
+//			if (SH_ROM_WAIT) ROM_WAIT_CNT <= ROM_WAIT_CNT + 8'd1;
 			case (ROM_ST)
 				RS_IDLE: begin
-					if (SH_ROM_WAIT && AS_N_SYNC[0] && !DCR.RV) begin
+					if (SH_ROM_WAIT && (AS_N || !MD_32XROM_SEL) && !DCR.RV) begin
 						S32X_CE0 <= 1;
 						S32X_LWR <= ~SHDQMLL_N;
 						S32X_UWR <= ~SHDQMLU_N;
 						S32X_CAS0 <= ~SHRD_N;
 						SH_ROM_GRANT <= 1;
-						ROM_ST <= RS_SH_WAIT;//RS_SH_RW;;
+						ROM_ST <= RS_SH_WAIT;
 					end else if (MD_ROM_WAIT && ADCR.ADEN && !DCR.RV) begin
 						S32X_CE0 <= 1;
-						ROM_ST <= RS_MD_RW;
+						S32X_LWR <= ~LWR_N;
+						S32X_UWR <= ~UWR_N;
+						S32X_CAS0 <= ~CAS0_N;
+						ROM_ST <= RS_MD_WAIT;
 					end
-//					ROM_WAIT_CNT <= '0;
-				end
-				
-				RS_SH_RW: begin
-					if (CE_F) begin
-						ROM_ST <= RS_SH_WAIT;
-					end
+					ROM_WAIT_CNT <= '0;
 				end
 				
 				RS_SH_WAIT: begin
@@ -861,9 +842,9 @@ module S32X_IF
 					end
 				end
 				
-				RS_SH_READ: begin
-					if (!ROM_WAIT_SYNC && CE_F) begin
-						SH_ROM_DO <= CDI_SYNC;
+				RS_SH_READ: if (CE_F) begin
+					if (!ROM_WAIT_SYNC) begin
+						SH_ROM_DO <= CDI;
 						SH_ROM_WAIT <= 0;
 						S32X_LWR <= 0;
 						S32X_UWR <= 0;
@@ -873,18 +854,31 @@ module S32X_IF
 					end
 				end
 				
-				RS_SH_END: begin
+				RS_SH_END: if (CE_R) begin
 					if (SHRD_N && SHDQMLL_N && SHDQMLU_N) begin
+						ROM_ST <= RS_SH_CONT;
+					end
+				end
+				
+				RS_SH_CONT: if (CE_F) begin
+					if (SH_ROM_SEL && !SHBS_N) begin
+						S32X_CE0 <= 1;
+						S32X_LWR <= ~SHDQMLL_N;
+						S32X_UWR <= ~SHDQMLU_N;
+						S32X_CAS0 <= ~SHRD_N;
+						ROM_ST <= RS_SH_WAIT;
+					end else begin
 						S32X_CE0 <= 0;
 						SH_ROM_GRANT <= 0;
 						ROM_ST <= RS_IDLE;
 					end
 				end
 				
+				//
 				RS_MD_RW: begin
-					S32X_LWR <= ~LWR_V;
-					S32X_UWR <= ~UWR_V;
-					S32X_CAS0 <= ~CAS0_V;
+					S32X_LWR <= ~LWR_N;
+					S32X_UWR <= ~UWR_N;
+					S32X_CAS0 <= ~CAS0_N;
 					ROM_ST <= USE_ROM_WAIT ? RS_MD_WAIT : RS_MD_READ;
 				end
 				
@@ -896,7 +890,7 @@ module S32X_IF
 				
 				RS_MD_READ: begin
 					if (!ROM_WAIT_SYNC) begin
-						MD_ROM_DO <= CDI_SYNC;
+						MD_ROM_DO <= CDI;
 						MD_ROM_WAIT <= 0;
 						MD_ROM_DTACK_N <= 0;
 						ROM_ST <= RS_MD_END;
@@ -904,7 +898,7 @@ module S32X_IF
 				end
 				
 				RS_MD_END: begin
-					if (AS_N_SYNC[0] && !MD_ROM_DTACK_N) begin
+					if (AS_N && !MD_ROM_DTACK_N) begin
 						S32X_CE0 <= 0;
 						S32X_LWR <= 0;
 						S32X_UWR <= 0;
@@ -912,15 +906,16 @@ module S32X_IF
 						MD_ROM_DTACK_N <= 1;
 						ROM_ST <= RS_IDLE;
 					end
+					ROM_WAIT_CNT <= ROM_WAIT_CNT + 8'd1;
 				end
 			endcase
 		end
 	end
 	
 	bit VDP_DTACK_N;
-	wire MD_VDPREG_SEL = VA_SYNC[23:7] == 24'hA15180>>7;		//A15180-A151FF
-	wire MD_VDPPAL_SEL = VA_SYNC[23:9] == 24'hA15200>>9 ;		//A15200-A153FF
-	wire MD_VDPDRAM_SEL = VA_SYNC[23:18] == 24'h840000>>18;	//840000-87FFFF
+	wire MD_VDPREG_SEL = VA[23:7] == 24'hA15180>>7;		//A15180-A151FF
+	wire MD_VDPPAL_SEL = VA[23:9] == 24'hA15200>>9 ;		//A15200-A153FF
+	wire MD_VDPDRAM_SEL = VA[23:18] == 24'h840000>>18;	//840000-87FFFF
 	wire MD_VDP_SEL = MD_VDPREG_SEL | MD_VDPPAL_SEL | MD_VDPDRAM_SEL;
 	
 	bit SH_VDP_WAIT;
@@ -947,16 +942,16 @@ module S32X_IF
 			SH_VDP_ACCESS <= 0;
 		end
 		else begin
-			if (MD_VDP_SEL && !AS_N_SYNC[0] && (LWR_F || UWR_F || CAS0_F) && VDP_DTACK_N && !MD_VDP_ACCESS) begin
+			if (MD_VDP_SEL && !AS_N && (LWR_F || UWR_F || CAS0_F) && VDP_DTACK_N && !MD_VDP_ACCESS) begin
 				if (!ADCR.FM) begin
-					VDP_A <= VA_SYNC[17:1];
-					VDP_DO <= VDI_SYNC;
+					VDP_A <= VA[17:1];
+					VDP_DO <= VDI;
 					VDP_REG_CS_N <= ~MD_VDPREG_SEL;
 					VDP_PAL_CS_N <= ~MD_VDPPAL_SEL;
 					VDP_DRAM_CS_N <= ~MD_VDPDRAM_SEL;
-					VDP_RD_N <= CAS0_V;
-					VDP_LWR_N <= LWR_V;
-					VDP_UWR_N <= UWR_V;
+					VDP_RD_N <= CAS0_N;
+					VDP_LWR_N <= LWR_N;
+					VDP_UWR_N <= UWR_N;
 					MD_VDP_ACCESS <= 1;
 				end else begin
 					VDP_DTACK_N <= 0;
@@ -972,7 +967,7 @@ module S32X_IF
 					VDP_DTACK_N <= 0;
 					MD_VDP_ACCESS <= 0;
 				end
-			end else if (AS_N_SYNC[0] && !VDP_DTACK_N) begin
+			end else if (AS_N && !VDP_DTACK_N) begin
 				VDP_DTACK_N <= 1;
 			end
 			
@@ -1006,13 +1001,13 @@ module S32X_IF
 	
 	always_comb begin
 		if (!ADCR.ADEN || DCR.RV) 
-			OVA = VA_SYNC[21:19];
-		else if (VA_SYNC[21:19] == 3'b001) 	//880000-8FFFFF->000000-07FFFF
+			OVA = VA[21:19];
+		else if (VA[21:19] == 3'b001) 	//880000-8FFFFF->000000-07FFFF
 			OVA = 3'b000;
-		else if (VA_SYNC[21:19] ==? 3'b01?) 	//900000-9FFFFF->x00000-xFFFFF (x=0..3)
-			OVA = {BSR.BK,VA_SYNC[19]};
+		else if (VA[21:19] ==? 3'b01?) 	//900000-9FFFFF->x00000-xFFFFF (x=0..3)
+			OVA = {BSR.BK,VA[19]};
 		else
-			OVA = VA_SYNC[21:19];
+			OVA = VA[21:19];
 		
 		if (MD_SYSREG_SEL)
 			VDO = MD_REG_DO;
@@ -1028,13 +1023,11 @@ module S32X_IF
 			VDO = CDI;
 	end
 	
-	assign DTACK_N = MD_REG_DTACK_N & MD_ROM_DTACK_N & VDP_DTACK_N & ~MD_32XID_SEL & ~(MD_BIOS_SEL & ~CE0_N_SYNC[0] & ~AS_N_SYNC[0]);
+	assign DTACK_N = MD_REG_DTACK_N & MD_ROM_DTACK_N & VDP_DTACK_N & ~MD_32XID_SEL & ~(MD_BIOS_SEL & ~CE0_N & ~AS_N);
 	
-	assign SHDO = SH_ROM_SEL    ? SH_ROM_DO : 
-	              SH_VDP_SEL    ? VDP_DI : 
-					  SH_SYSREG_SEL ? SH_REG_DO : 
-					  SH_BIOS_SEL   ? SH_REG_DO : 
-					                  16'h0000;
+	assign SHDO = SH_ROM_SEL ? SH_ROM_DO : 
+	              SH_VDP_SEL ? VDP_DI : 
+					  SH_SYSREG_SEL || SH_BIOS_SEL ? SH_REG_DO : 16'h0000;
 	assign SHWAIT_N = ~SH_ROM_WAIT & ~SH_VDP_WAIT /*& ~SH_SYSREG_WAIT*/;
 	
 	assign SHRES_N = ADCR.RES /*| ~ADCR.REN*/;
@@ -1059,16 +1052,16 @@ module S32X_IF
 		else               SHSIRL_N = 3'b111;	//0
 	end
 	
-	assign CDO = VDI_SYNC;
-	assign CASEL_N = ADCR.ADEN && !DCR.RV && S32X_CE0 ? ~S32X_CE0 : ASEL_N_SYNC;
-	assign CLWR_N  = ADCR.ADEN && !DCR.RV && S32X_CE0 ? ~S32X_LWR : LWR_N_SYNC[0];
-	assign CUWR_N  = ADCR.ADEN && !DCR.RV && S32X_CE0 ? ~S32X_UWR : UWR_N_SYNC[0];
-	assign CCE0_N  = ADCR.ADEN && !DCR.RV && S32X_CE0 ? ~S32X_CE0 : MD_BIOS_SEL | CE0_N_SYNC[0];
-	assign CCAS0_N = ADCR.ADEN && !DCR.RV && S32X_CE0 ? ~S32X_CAS0 : CAS0_N_SYNC[0];
-	assign CCAS2_N = CAS2_N_SYNC;
+	assign CDO = VDI;
+	assign CASEL_N = ADCR.ADEN && S32X_CE0 ? ~S32X_CE0 : ASEL_N;
+	assign CLWR_N  = ADCR.ADEN && S32X_CE0 ? ~S32X_LWR : LWR_N;
+	assign CUWR_N  = ADCR.ADEN && S32X_CE0 ? ~S32X_UWR : UWR_N;
+	assign CCE0_N  = ADCR.ADEN && S32X_CE0 ? ~S32X_CE0 : MD_BIOS_SEL | (MD_ROM_SEL & !DCR.RV) | CE0_N;
+	assign CCAS0_N = ADCR.ADEN && S32X_CE0 ? ~S32X_CAS0 : CAS0_N;
+	assign CCAS2_N = CAS2_N;
 	
 	assign SEL = SH_ROM_GRANT;
 
-	assign DBG_VA = {VA_SYNC,1'b0};
+	assign DBG_VA = {VA,1'b0};
 	
 endmodule

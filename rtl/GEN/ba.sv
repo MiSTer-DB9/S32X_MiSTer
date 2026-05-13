@@ -78,7 +78,7 @@ module BA
 	input         MEM_RDY,
 	input         PAUSE_EN,
 	
-	output  [7:0] DBG_Z80_HOOK
+	output reg [7:0] DBG_Z80_HOOK
 );
 
 	wire M68K_INTACK = &M68K_FC & ~M68K_AS_N;
@@ -200,7 +200,6 @@ module BA
 			case(mstate)
 			MBUS_IDLE:
 				begin
-				MBUS_AS_N <= 1; //Assume MBUS idle and update if activity exists
 				if (!PAUSE_EN) begin
 					msrc <= MSRC_NONE;
 					if (!M68K_AS_N && (!M68K_LDS_N || !M68K_UDS_N) && M68K_MBUS_DTACK_N && !M68K_INTACK) begin
@@ -536,7 +535,6 @@ module BA
 							OPEN_BUS <= MBUS_DI;
 						end
 					end
-					MBUS_AS_N <= 1; //Always return execution to SH on finish.
 				end
 			endcase;
 		end
@@ -763,7 +761,7 @@ module BA
 			else if (!Z80_BGACK_N && !Z80_AS_N && !Z80_WAIT_N && !Z80_WAIT_DELAY && M68K_CLKENp) begin
 				Z80_WAIT_DELAY <= 1;
 			end
-			else if (!Z80_BGACK_N && !Z80_WAIT_N && Z80_WAIT_DELAY && M68K_CLKENp) begin
+			else if (!Z80_BGACK_N && !Z80_WAIT_N && Z80_WAIT_DELAY && !Z80_MBUS_DTACK_N && M68K_CLKENp) begin
 				Z80_WAIT_N <= 1;
 				Z80_WAIT_DELAY <= 0;
 			end
