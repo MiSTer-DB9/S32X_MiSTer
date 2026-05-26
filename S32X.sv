@@ -441,7 +441,9 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.new_vmode(new_vmode),
 
 	.status(status),
-	.status_in({status[63:8],region_req,status[5:0]}),
+	// [MiSTer-DB9 BEGIN] - widened to 128 bits, preserve [127:64] (joy_type at [127:125], joy_2p at [124])
+	.status_in({status[127:8],region_req,status[5:0]}),
+	// [MiSTer-DB9 END]
 	.status_set(region_set),
 	.status_menumask({en216p,!gun_mode,1'b1,status[9],~gg_available,~bk_ena}),
 
