@@ -11,12 +11,12 @@ module VDP
 	input             RNW,
 	input             AS_N,
 	input      [15:0] DI,
-	output     [15:0] DO,
+	output reg [15:0] DO,
 	output            DTACK_N,
 	output            BR_N,
 	input             BG_N,
 	output            BGACK_N,
-	output      [2:1] IPL_N,
+	output reg  [2:1] IPL_N,
 
 	output            VINT,
 	output            HINT,
@@ -37,20 +37,20 @@ module VDP
 	input       [7:0] VRAM_Q,
 	output            VRAM_WE,
 
-	output            CE_PIX,
-	output            FIELD_OUT,
+	output  reg       CE_PIX,
+	output  reg       FIELD_OUT,
 	output            INTERLACE,
 	output      [1:0] RESOLUTION,
 	output            HBL,
 	output            VBL,
 
-	output      [3:0] R,
-	output      [3:0] G,
-	output      [3:0] B,
-	output            YS_N,
+	output reg  [3:0] R,
+	output reg  [3:0] G,
+	output reg  [3:0] B,
+	output reg        YS_N,
 	output            EDCLK,
-	output            HS_N,
-	output            VS_N,
+	output reg        HS_N,
+	output reg        VS_N,
 		
 	input             BORDER_EN,
 	input             VSCROLL_BUG, //'1';
@@ -178,7 +178,8 @@ module VDP
 	bit [10:0] VSCRLB;
 	bit  [8:0] DISP_X;
 	bit [15:0] SPR_VRAM_ADDR;
-	bit        DISP_EN_PIPE[6];
+	bit        DISP;
+	bit        DISP_EN_PIPE[3];
 	
 	bit        VINT_FLAG;
 	bit        HINT_FLAG;
@@ -720,13 +721,13 @@ module VDP
 	assign REFRESH = SLOT == ST_REFRESH && DMA_VBUS;
 	
 	//CRAM
-	wire  [6:1] CRAM_ADDR_A;
+	reg   [6:1] CRAM_ADDR_A;
 	wire  [8:0] CRAM_Q_A;
 	wire  [6:1] CRAM_ADDR_B = IO_ADDR[6:1];
 	wire  [8:0] CRAM_D = {IO_DATA[11:9],IO_DATA[7:5],IO_DATA[3:1]};
 	wire        CRAM_WE = ((IO_WE && FIFO_CODE == 4'b0011) || (DMA_FILL_WE && DMA_FILL_CODE == 4'b0011)) && SLOT == ST_EXT && SLOT_CE;
 	wire  [8:0] CRAM_Q_B;
-	dpram #(6,9) CRAM
+	vdp_cram CRAM
 	(
 		.clock(CLK),
 		.data_b(CRAM_D),
@@ -744,7 +745,7 @@ module VDP
 	wire [10:0] VSRAM_D = IO_DATA[10:0];
 	wire        VSRAM_WE = ((IO_WE && FIFO_CODE == 4'b0101) || (DMA_FILL_WE && DMA_FILL_CODE == 4'b0101)) && SLOT == ST_EXT && SLOT_CE;
 	wire [10:0] VSRAM_Q_B;
-	dpram_dif #(5,22,6,11) VSRAM
+	vdp_vsram VSRAM
 	(
 		.clock(CLK),
 		.data_b(VSRAM_D),
@@ -1000,7 +1001,7 @@ module VDP
 	wire SLOT_CE = DCLK_CE & H_CNT[0];
 	
 	always_comb begin
-		if (IN_VBL || !MR2.DISP)
+		if (IN_VBL || !DISP)
 			if (H_CNT[5:1] == 5'b11001)
 				SLOT_PIPE[0] = ST_REFRESH;
 			else
@@ -1362,31 +1363,31 @@ module VDP
 	wire  [6:0] OBJVI_D = OBJ_N;
 	wire        OBJVI_WE = OBJ_FIND && (OBJVI_ADDR_WR < OBJ_MAX_CNT) && SLOT == ST_SPRCHAR && DCLK_CE;
 	wire  [6:0] OBJVI_Q;
-	mlab #(6,7) obj_visinfo
+	vdp_obj_visinfo OBJ_VISINFO
 	(
 		.clock(CLK),
-		.rdaddress(OBJVI_ADDR_RD),
-		.q(OBJVI_Q),
-		.wraddress(OBJVI_ADDR_WR),
-		.data(OBJVI_D),
-		.wren(OBJVI_WE)
+		.address_a(OBJVI_ADDR_RD),
+		.q_a(OBJVI_Q),
+		.address_b(OBJVI_ADDR_WR),
+		.data_b(OBJVI_D),
+		.wren_b(OBJVI_WE)
 	);
-	
+
 	bit   [5:0] OBJSI_ADDR_RD;
 	bit   [5:0] OBJSI_ADDR_WR;
 	wire [34:0] OBJSI_D = {VRAM_SDATA[24:0], OBJC_Q[27:24], OBJC_Y_OFS};
 	wire        OBJSI_WE = (OBJVI_ADDR_RD < OBJVI_ADDR_WR) && SLOT == ST_SPRMAP && OBJ_CE;
 	wire [34:0] OBJSI_Q;
-	mlab #(6,35) obj_spinfo
+	vdp_obj_spinfo OBJ_SPINFO
 	(
 		.clock(CLK),
-		.rdaddress(OBJSI_ADDR_RD),
-		.q(OBJSI_Q),
-		.wraddress(OBJSI_ADDR_WR),
-		.data(OBJSI_D),
-		.wren(OBJSI_WE)
+		.address_a(OBJSI_ADDR_RD),
+		.q_a(OBJSI_Q),
+		.address_b(OBJSI_ADDR_WR),
+		.data_b(OBJSI_D),
+		.wren_b(OBJSI_WE)
 	);
-	
+
 	ObjRenderInfo_t OBJRI[14];
 	
 	bit   [8:0] SPR_Y;
@@ -1619,7 +1620,7 @@ module VDP
 		end
 	end
 
-	wire [7:0] OBJL_D;
+	reg [7:0] OBJL_D;
 	always_comb begin
 		case (OBJ_PIX[2:0])
 			3'b100: OBJL_D = {OBJRI_LAST.BORD[2]                     , OBJRI_LAST.PRIO, OBJRI_LAST.PAL, OBJRI_LAST.DATA[31:28]};
@@ -1634,7 +1635,8 @@ module VDP
 	end
 	wire       OBJL_WE = OBJRI_LAST.EN && !OBJ_PIX[3] && OBJL_Q[3:0] == 4'b0000;
 	wire [7:0] OBJL_Q;
-	mlab #(9,8) obj_line
+
+	vdp_obj_line OBJ_LINE
 	(
 		.clock(CLK),
 		.rdaddress(!DISP_EN_PIPE[2] ? OBJL_ADDR : DISP_X),
@@ -1643,7 +1645,7 @@ module VDP
 		.wren(!DISP_EN_PIPE[2] ? OBJL_WE : DCLK_CE),
 		.q(OBJL_Q)
 	);
-	
+
 	always @(posedge CLK or negedge RST_N) begin
 		if (!RST_N) begin
 			SCOL_FLAG <= 0;
@@ -1663,24 +1665,28 @@ module VDP
 		end
 	end
 
+	bit  [7:0] DISP_SR;
 	always @(posedge CLK or negedge RST_N) begin
 		if (!RST_N) begin
-			DISP_EN_PIPE <= '{6{0}};
+			DISP_EN_PIPE <= '{3{0}};
+			DISP_SR <= '0;
 		end else begin
 			if (ENABLE && DCLK_CE) begin
 				if ((H_CNT == 9'h013 && !H40) || (H_CNT == 9'h013 && H40))
-					DISP_EN_PIPE[0] <= MR2.DISP & ~IN_VBL;
+					DISP_EN_PIPE[0] <= ~IN_VBL;
 				else if ((H_CNT == 9'h113 && !H40) || (H_CNT == 9'h153 && H40))
 					DISP_EN_PIPE[0] <= 0;
 				
 				DISP_EN_PIPE[1] <= DISP_EN_PIPE[0];
 				DISP_EN_PIPE[2] <= DISP_EN_PIPE[1];
-				DISP_EN_PIPE[3] <= DISP_EN_PIPE[2];
-				DISP_EN_PIPE[4] <= DISP_EN_PIPE[3];
-				DISP_EN_PIPE[5] <= DISP_EN_PIPE[4];
+			end
+			
+			if (ENABLE && SC_CE) begin
+				DISP_SR <= {DISP_SR[6:0],MR2.DISP};
 			end
 		end
 	end
+	assign DISP = DISP_SR[7];
 	
 	always @(posedge CLK or negedge RST_N) begin
 		BGTile_t   BGA_TILE[4];
@@ -1787,7 +1793,9 @@ module VDP
 						PIX_MODE_TEMP = PIX_NORMAL;
 					
 					PIX_MODE_PIPE[0] <= PIX_MODE_TEMP;
-					if (MR4.STE && (SPR_PRIO || ((!BGA_PRIO || BGA_COL == 4'b0000) && (!BGB_PRIO || BGB_COL == 4'b0000)))) begin
+					if (!DISP) begin
+						PIX_MODE_PIPE[0] <= PIX_NORMAL;
+					end else if (MR4.STE && (SPR_PRIO || ((!BGA_PRIO || BGA_COL == 4'b0000) && (!BGB_PRIO || BGB_COL == 4'b0000)))) begin
 						//sprite is visible
 						if (SPR_COL_30)
 							//if sprite is palette 3/color 14 increase intensity
@@ -1810,7 +1818,9 @@ module VDP
 						2'b11: PAL_COL_DBG = {BGB_PAL,BGB_COL};
 					endcase
 
-					if (DBG[6])
+					if (!DISP)
+						CRAM_ADDR_A <= {BGC.PAL,BGC.COL};
+					else if (DBG[6])
 						CRAM_ADDR_A <= PAL_COL_DBG;
 					else if (DBG[8:7] != 2'b00)
 						CRAM_ADDR_A <= PAL_COL & PAL_COL_DBG;
